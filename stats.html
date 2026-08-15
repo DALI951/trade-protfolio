@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trade Journal — Statistics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-inner">
+            <div class="brand">TJ<span class="dot">.</span><span class="brand-sub">BVMT Journal</span></div>
+            <nav class="nav">
+                <a href="index.html">Calendar</a>
+                <a href="stats.html" class="active">Stats</a>
+            </nav>
+            <div class="header-right">
+                <span class="header-date" id="headerDate"></span>
+            </div>
+        </div>
+    </header>
+
+    <div class="wrap">
+        <section class="section">
+            <div class="section-head">
+                <div class="section-title">Performance</div>
+                <div class="section-sub">Across all recorded days</div>
+            </div>
+            <div class="stat-grid" id="perfGrid"></div>
+        </section>
+
+        <section class="section">
+            <div class="chart-card">
+                <div class="section-title">Portfolio Value Over Time</div>
+                <div class="chart-box"><canvas id="valueChart"></canvas></div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="chart-card">
+                <div class="section-title">Daily Change vs Previous Day</div>
+                <div class="chart-box"><canvas id="changeChart"></canvas></div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-head">
+                <div class="section-title">Daily Breakdown</div>
+                <div class="section-sub" id="breakdownCount"></div>
+            </div>
+            <div class="calendar-card" id="breakdownList"></div>
+        </section>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="js/common.js"></script>
+    <script src="js/stats.js"></script>
+</body>
+</html>

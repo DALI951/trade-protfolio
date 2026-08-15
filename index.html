@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trade Journal — Calendar</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=3">
+</head>
+<body>
+    <header class="header">
+        <div class="header-inner">
+            <div class="brand">TJ<span class="dot">.</span><span class="brand-sub">BVMT Journal</span></div>
+            <nav class="nav">
+                <a href="index.html" class="active">Calendar</a>
+                <a href="stats.html">Stats</a>
+            </nav>
+            <div class="header-right">
+                <span class="header-date" id="headerDate"></span>
+            </div>
+        </div>
+    </header>
+
+    <div class="wrap">
+        <!-- Upload -->
+        <section class="section">
+            <div class="upload-card">
+                <div class="dropzone" id="dropzone">
+                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                    </svg>
+                    <div class="dz-title" id="dzTitle">Drop both screenshots here or click to browse</div>
+                    <div class="dz-sub" id="dzSub">Positions view + Portfolio summary — processed in your browser</div>
+                    <input type="file" id="fileInput" multiple accept="image/*" hidden>
+                </div>
+                <div class="upload-row">
+                    <input type="date" class="date-input" id="dateInput">
+                    <button class="btn btn-primary" id="processBtn" disabled>Process</button>
+                    <button class="btn btn-ghost" id="clearBtn" hidden>Clear files</button>
+                </div>
+                <div class="status" id="status"></div>
+            </div>
+        </section>
+
+        <!-- Summary -->
+        <section class="section" id="summarySection" hidden>
+            <div class="section-head">
+                <div class="section-title">Latest Day</div>
+                <div class="section-sub" id="latestDate"></div>
+            </div>
+            <div class="stat-grid" id="summaryGrid"></div>
+        </section>
+
+        <!-- Calendar -->
+        <section class="section">
+            <div class="calendar-card">
+                <div class="cal-head">
+                    <div class="cal-title" id="calTitle"></div>
+                    <div class="cal-nav">
+                        <button class="icon-btn" id="prevBtn" aria-label="Previous month">&#8592;</button>
+                        <button class="icon-btn" id="nextBtn" aria-label="Next month">&#8594;</button>
+                    </div>
+                </div>
+                <div class="cal-grid" id="calGrid"></div>
+                <div class="cal-legend">
+                    <span><i class="legend-up"></i> Money up</span>
+                    <span><i class="legend-down"></i> Money down</span>
+                    <span><i class="legend-flat"></i> No data</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Day detail -->
+        <section class="section" id="detailSection" hidden>
+            <div class="section-head">
+                <div class="section-title" id="detailTitle">Day Detail</div>
+                <div class="section-sub" id="detailDelta"></div>
+            </div>
+            <div class="detail-grid" id="detailGrid"></div>
+        </section>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="js/common.js?v=3"></script>
+    <script src="js/ocr.js?v=3"></script>
+    <script src="js/calendar.js?v=3"></script>
+</body>
+</html>
