@@ -45,6 +45,14 @@ function showToast(msg) {
 }
 
 // ---- API ----
+function guardUnauthorized(res) {
+    if (res.status === 401) {
+        window.location.replace('login.html');
+        return null;
+    }
+    return res;
+}
+
 const API = {
     async save(date, day) {
         const res = await fetch('api/save.php', {
@@ -52,10 +60,11 @@ const API = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ date, day }),
         });
-        return res.json();
+        return guardUnauthorized(res)?.json();
     },
     async all() {
         const res = await fetch('api/data.php');
+        if (!guardUnauthorized(res)) return {};
         if (!res.ok) throw new Error('API error ' + res.status);
         return res.json();
     },
@@ -65,10 +74,11 @@ const API = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ date }),
         });
-        return res.json();
+        return guardUnauthorized(res)?.json();
     },
     async names() {
         const res = await fetch('api/names.php');
+        if (!guardUnauthorized(res)) return {};
         if (!res.ok) throw new Error('API error ' + res.status);
         return res.json();
     },
@@ -78,6 +88,6 @@ const API = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ names }),
         });
-        return res.json();
+        return guardUnauthorized(res)?.json();
     },
 };

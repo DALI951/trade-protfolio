@@ -1,30 +1,13 @@
 <?php
-// Trade Journal — persistent stock-name aliases (OCR name -> canonical name)
+// Trade Journal — per-user stock-name aliases (OCR name -> canonical name)
 header('Content-Type: application/json; charset=utf-8');
+require_once __DIR__ . '/_auth.php';
 
-const NAMES_FILE = __DIR__ . '/../data/names.json';
-
-function read_names(): array {
-    if (!file_exists(NAMES_FILE)) return [];
-    $raw = @file_get_contents(NAMES_FILE);
-    if ($raw === false) return [];
-    $data = json_decode($raw, true);
-    return is_array($data) ? $data : [];
-}
-
-function write_names(array $names): bool {
-    $dir = dirname(NAMES_FILE);
-    if (!is_dir($dir)) @mkdir($dir, 0775, true);
-    $tmp = NAMES_FILE . '.tmp';
-    $ok = @file_put_contents($tmp, json_encode($names, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
-    if ($ok === false) return false;
-    return @rename($tmp, NAMES_FILE);
-}
-
+$user = require_auth();
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
-    echo json_encode(read_names(), JSON_UNESCAPED_UNICODE);
+    echo json_encode(read_user_json($user, 'names'), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -41,7 +24,7 @@ if ($method === 'POST') {
         $val = trim(preg_replace('/[^A-Z0-9 \.\-\(\)]/i', '', $v));
         if ($key !== '' && $val !== '') $names[$key] = $val;
     }
-    if (!write_names($names)) {
+    if (!write_user_json($user, 'names', $names)) {
         http_response_code(500);
         echo json_encode(['ok' => false, 'error' => 'Could not write names file (permissions?)']);
         exit;

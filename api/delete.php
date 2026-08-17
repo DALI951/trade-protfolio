@@ -1,25 +1,9 @@
 <?php
-// Trade Journal — delete a day
+// Trade Journal — delete a day for the logged-in user
 header('Content-Type: application/json; charset=utf-8');
+require_once __DIR__ . '/_auth.php';
 
-const DATA_FILE = __DIR__ . '/../data/journal.json';
-
-function read_all(): array {
-    if (!file_exists(DATA_FILE)) return [];
-    $raw = @file_get_contents(DATA_FILE);
-    if ($raw === false) return [];
-    $data = json_decode($raw, true);
-    return is_array($data) ? $data : [];
-}
-
-function write_all(array $days): bool {
-    $dir = dirname(DATA_FILE);
-    if (!is_dir($dir)) @mkdir($dir, 0775, true);
-    $tmp = DATA_FILE . '.tmp';
-    $ok = @file_put_contents($tmp, json_encode($days, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
-    if ($ok === false) return false;
-    return @rename($tmp, DATA_FILE);
-}
+$user = require_auth();
 
 $body = json_decode(file_get_contents('php://input'), true);
 if (!$body || !isset($body['date'])) {
@@ -28,9 +12,9 @@ if (!$body || !isset($body['date'])) {
     exit;
 }
 $date = preg_replace('/[^0-9\-]/', '', $body['date']);
-$days = read_all();
+$days = read_user_json($user, 'journals');
 if (isset($days[$date])) unset($days[$date]);
-if (!write_all($days)) {
+if (!write_user_json($user, 'journals', $days)) {
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => 'Could not write data file']);
     exit;

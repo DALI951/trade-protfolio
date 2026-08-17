@@ -11,7 +11,7 @@ let ocrResult = null;    // last parsed OCR data
 document.addEventListener('DOMContentLoaded', () => {
     $('#headerDate').textContent = fmtDateLong(todayStr());
     $('#dateInput').value = todayStr();
-    loadData();
+    requireLogin().then((user) => { if (user) loadData(); });
 });
 
 async function loadData() {

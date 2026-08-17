@@ -5,7 +5,7 @@ let shareCharts = {};
 
 document.addEventListener('DOMContentLoaded', () => {
     $('#headerDate').textContent = fmtDateLong(todayStr());
-    init();
+    requireLogin().then((user) => { if (user) init(); });
 });
 
 async function init() {
