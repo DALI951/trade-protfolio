@@ -63,11 +63,12 @@ a { color: inherit; text-decoration: none; }
     padding: 5px 12px; border-radius: 999px; letter-spacing: 0.3px;
 }
 .logout-btn {
-    border: 1px solid var(--line); background: transparent; color: var(--muted);
-    font-size: 12.5px; font-weight: 600; padding: 5px 12px; border-radius: 999px;
-    cursor: pointer; transition: all 0.15s ease;
+    background: var(--card-2); color: var(--txt);
+    border: 1px solid var(--line); border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 700; padding: 8px 16px;
+    cursor: pointer; transition: all 0.15s ease; font-family: inherit;
 }
-.logout-btn:hover { color: #fff; border-color: var(--red); background: var(--red); }
+.logout-btn:hover { border-color: var(--red); color: #fff; }
 
 /* ---------- Login page ---------- */
 .auth-body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
@@ -83,24 +84,18 @@ a { color: inherit; text-decoration: none; }
 }
 .auth-tab {
     flex: 1; border: none; background: transparent; color: var(--muted);
-    font-size: 13px; font-weight: 600; padding: 8px 0; border-radius: 8px; cursor: pointer; transition: all 0.15s ease;
+    font-size: 13px; font-weight: 600; padding: 7px 0; border-radius: 8px; cursor: pointer; transition: all 0.15s ease;
 }
 .auth-tab:hover { color: var(--txt); }
 .auth-tab.active { background: var(--red); color: #fff; }
 .auth-label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); margin: 14px 0 6px; }
 .auth-input {
-    width: 100%; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px;
-    color: var(--txt); font-size: 14.5px; padding: 11px 14px; outline: none; transition: border-color 0.15s ease;
+    width: 100%; background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--radius-sm);
+    color: var(--txt); font-size: 13.5px; font-family: inherit; padding: 10px 12px; outline: none; transition: border-color 0.15s ease;
 }
 .auth-input:focus { border-color: var(--red); }
 .auth-error { min-height: 18px; font-size: 12.5px; color: var(--red); margin-top: 10px; }
-.auth-btn {
-    width: 100%; margin-top: 6px; border: none; cursor: pointer;
-    background: var(--red); color: #fff; font-size: 14px; font-weight: 700;
-    padding: 12px 0; border-radius: 10px; transition: background 0.15s ease;
-}
-.auth-btn:hover { background: var(--red-hover); }
-.auth-btn:disabled { opacity: 0.6; cursor: default; }
+.auth-submit { width: 100%; padding: 12px 0; font-size: 14px; margin-top: 6px; }
 .auth-note { margin-top: 18px; text-align: center; font-size: 12px; color: var(--dim); }
 
 /* ---------- Layout ---------- */
