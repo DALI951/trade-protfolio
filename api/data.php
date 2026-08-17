@@ -6,7 +6,7 @@ const DATA_FILE = __DIR__ . '/../data/journal.json';
 const ALLOWED_KEYS = [
     'valorisation', 'total_valo', 'plus_minus_value', 'disponible', 'engagee',
     'total_portefeuille', 'total_liquidite', 'liquidite_disponible',
-    'liquidite_reservee', 'total_general', 'positions', 'holdings',
+    'liquidite_reservee', 'total_general', 'positions', 'holdings', 'stocks',
 ];
 
 function read_all(): array {

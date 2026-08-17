@@ -2,6 +2,7 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 const DOWS = ['Mo','Tu','We','Th','Fr','Sa','Su'];
 
 let days = {};           // date -> day object
+let aliases = {};        // normalized OCR name -> canonical name
 let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
 let selectedFiles = [];
@@ -20,6 +21,9 @@ async function loadData() {
         days = {};
         showToast('Failed to load data: ' + e.message);
     }
+    try {
+        aliases = await API.names();
+    } catch (e) { /* aliases optional */ }
     renderCalendar();
     showLatestSummary();
 }
@@ -131,7 +135,35 @@ function mergeDay(positions, portfolio, existing) {
         day.total_general = portfolio.total_general ?? day.total_general;
         if (portfolio.holdings.length) day.holdings = portfolio.holdings;
     }
+    // merged per-share list (common shares summed)
+    if (positions && portfolio) {
+        day.stocks = applyAliases(mergeStocks(positions.positions, portfolio.holdings), aliases);
+    } else if (positions) {
+        day.stocks = applyAliases(positions.positions.map((p) => ({
+            name: p.name, qty: p.qty, value: p.value, plus_minus: p.plus_minus,
+            pm: p.pm, prmp: p.prmp, source: 'A',
+        })), aliases);
+    } else if (portfolio) {
+        day.stocks = applyAliases(portfolio.holdings.map((h) => ({
+            name: h.titre, qty: h.quantite, value: h.montant, cours: h.cours, source: 'B',
+        })), aliases);
+    }
     return day;
+}
+
+async function renameStock(oldName) {
+    const newName = prompt('Rename stock (applies to all days):', oldName);
+    if (!newName || newName.trim() === oldName) return;
+    const key = stockKey(oldName);
+    aliases[key] = newName.trim();
+    try {
+        const res = await API.setNames(aliases);
+        if (!res.ok) throw new Error(res.error || 'save failed');
+        showToast('Renamed to ' + aliases[key]);
+        loadData();
+    } catch (e) {
+        showToast('Rename failed: ' + e.message);
+    }
 }
 
 // ---------------- Summary ----------------
@@ -261,35 +293,58 @@ function showDetail(date) {
 
     let html = '';
 
-    if (day.positions && day.positions.length) {
-        html += `<div class="panel">
-            <h3>Positions</h3>
-            <table class="table">
-                <tr><th>Stock</th><th class="num">QTE</th><th class="num">PM</th><th class="num">Value</th><th class="num">+/-</th></tr>
-                ${day.positions.map((p) => `<tr>
-                    <td class="stock-name">${p.name || '—'}</td>
-                    <td class="num">${p.qty ?? '—'}</td>
-                    <td class="num">${fmtNum(p.pm)}</td>
-                    <td class="num">${fmtNum(p.value, 2)}</td>
-                    <td class="num ${p.plus_minus > 0 ? 'pos' : p.plus_minus < 0 ? 'neg' : ''}">${fmtNum(p.plus_minus)}</td>
-                </tr>`).join('')}
-            </table>
-        </div>`;
-    }
+    const stocksList = day.stocks && day.stocks.length
+        ? day.stocks
+        : (day.positions && day.positions.length && day.holdings && day.holdings.length
+            ? applyAliases(mergeStocks(day.positions, day.holdings), aliases)
+            : (day.stocks || null));
 
-    if (day.holdings && day.holdings.length) {
+    if (stocksList && stocksList.length) {
         html += `<div class="panel">
-            <h3>Holdings</h3>
+            <h3>Stocks (merged)</h3>
             <table class="table">
-                <tr><th>Titre</th><th class="num">Qty</th><th class="num">Cours</th><th class="num">Montant</th></tr>
-                ${day.holdings.map((h) => `<tr>
-                    <td class="stock-name">${h.titre || '—'}</td>
-                    <td class="num">${h.quantite ?? '—'}</td>
-                    <td class="num">${fmtNum(h.cours)}</td>
-                    <td class="num">${fmtNum(h.montant)}</td>
+                <tr><th>Stock</th><th class="num">Qty</th><th class="num">Cours</th><th class="num">Value</th><th class="num">+/-</th><th class="num">Src</th></tr>
+                ${stocksList.map((s) => `<tr>
+                    <td class="stock-name">${esc(s.name) || '—'}
+                        <button class="rename-btn" title="Rename" onclick="renameStock('${escAttr(s.name)}')">✎</button>
+                    </td>
+                    <td class="num">${s.qty ?? '—'}</td>
+                    <td class="num">${fmtNum(s.cours)}</td>
+                    <td class="num">${fmtNum(s.value, 2)}</td>
+                    <td class="num ${s.plus_minus > 0 ? 'pos' : s.plus_minus < 0 ? 'neg' : ''}">${s.plus_minus != null ? fmtNum(s.plus_minus) : '—'}</td>
+                    <td class="num"><span class="src-badge ${s.source}">${s.source === 'both' ? 'A+B' : s.source}</span></td>
                 </tr>`).join('')}
             </table>
         </div>`;
+
+        if (day.positions && day.positions.length) {
+            html += `<details class="panel"><summary>Picture A (positions view)</summary>
+                <table class="table">
+                    <tr><th>Stock</th><th class="num">QTE</th><th class="num">PM</th><th class="num">Value</th><th class="num">+/-</th></tr>
+                    ${day.positions.map((p) => `<tr>
+                        <td class="stock-name">${esc(p.name) || '—'}</td>
+                        <td class="num">${p.qty ?? '—'}</td>
+                        <td class="num">${fmtNum(p.pm)}</td>
+                        <td class="num">${fmtNum(p.value, 2)}</td>
+                        <td class="num ${p.plus_minus > 0 ? 'pos' : p.plus_minus < 0 ? 'neg' : ''}">${fmtNum(p.plus_minus)}</td>
+                    </tr>`).join('')}
+                </table>
+            </details>`;
+        }
+
+        if (day.holdings && day.holdings.length) {
+            html += `<details class="panel"><summary>Picture B (portfolio summary)</summary>
+                <table class="table">
+                    <tr><th>Titre</th><th class="num">Qty</th><th class="num">Cours</th><th class="num">Montant</th></tr>
+                    ${day.holdings.map((h) => `<tr>
+                        <td class="stock-name">${esc(h.titre) || '—'}</td>
+                        <td class="num">${h.quantite ?? '—'}</td>
+                        <td class="num">${fmtNum(h.cours)}</td>
+                        <td class="num">${fmtNum(h.montant)}</td>
+                    </tr>`).join('')}
+                </table>
+            </details>`;
+        }
     }
 
     const totals = [

@@ -1,4 +1,7 @@
 let days = {};
+let aliases = {};
+let shareSource = 'merged';
+let shareCharts = {};
 
 document.addEventListener('DOMContentLoaded', () => {
     $('#headerDate').textContent = fmtDateLong(todayStr());
@@ -12,6 +15,9 @@ async function init() {
         showToast('Failed to load data: ' + e.message);
         return;
     }
+    try {
+        aliases = await API.names();
+    } catch (e) { /* optional */ }
     const dates = Object.keys(days).sort();
     if (!dates.length) {
         $('#perfGrid').innerHTML = `<div class="empty" style="grid-column:1/-1">
@@ -25,6 +31,175 @@ async function init() {
     renderValueChart(dates);
     renderChangeChart(dates);
     renderBreakdown(dates);
+    initShares();
+}
+
+function stockNameOf(s) {
+    let n = s.name || s.titre || '';
+    const key = stockKey(n);
+    return aliases[key] || n;
+}
+
+// name -> [{date, qty, value, plus_minus}] per the active source
+function dayStocksList(day) {
+    if (day.stocks && day.stocks.length) return day.stocks;
+    if (day.positions && day.positions.length && day.holdings && day.holdings.length) {
+        return applyAliases(mergeStocks(day.positions, day.holdings), aliases);
+    }
+    return day.stocks || null;
+}
+
+function stockSeries(source) {
+    const series = {};
+    for (const [date, day] of Object.entries(days)) {
+        const list = source === 'A' ? day.positions
+            : source === 'B' ? day.holdings
+            : dayStocksList(day);
+        for (const s of list || []) {
+            const name = stockNameOf(s);
+            const pt = {
+                date,
+                qty: s.qty != null ? s.qty : s.quantite,
+                value: s.value != null ? s.value : s.montant,
+                plus_minus: s.plus_minus != null ? s.plus_minus : null,
+            };
+            (series[name] = series[name] || []).push(pt);
+        }
+    }
+    return series;
+}
+
+function initShares() {
+    $('#srcSeg').addEventListener('click', (e) => {
+        const btn = e.target.closest('.seg-btn');
+        if (!btn) return;
+        shareSource = btn.dataset.src;
+        document.querySelectorAll('#srcSeg .seg-btn').forEach((b) => b.classList.toggle('active', b === btn));
+        renderShares();
+    });
+    $('#shareSelect').addEventListener('change', () => renderShareChart());
+    renderShares();
+}
+
+function renderShares() {
+    const series = stockSeries(shareSource);
+    const names = Object.keys(series).sort();
+    const sel = $('#shareSelect');
+    sel.innerHTML = names.map((n) => `<option value="${escAttr(n)}">${esc(n)}</option>`).join('');
+    renderShareChart();
+    renderCompareChart(series);
+    renderRanking(series);
+}
+
+function renderShareChart() {
+    const sel = $('#shareSelect');
+    const name = sel.value || '';
+    const pts = stockSeries(shareSource)[name] || [];
+    const canvas = $('#shareChart');
+    if (!canvas) return;
+    if (shareCharts.share) shareCharts.share.destroy();
+    const ctx = canvas.getContext('2d');
+    const opts = chartBase();
+    opts.plugins.legend = { display: true, labels: { color: '#9ca3af', boxWidth: 12, font: { size: 11 } } };
+    opts.plugins.tooltip.callbacks = {
+        label: (c) => `${c.dataset.label}: ${fmtNum(c.parsed.y)}`,
+    };
+    opts.scales.y.ticks.callback = (v) => fmtNum(v, 0);
+    shareCharts.share = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: pts.map((p) => p.date),
+            datasets: [{
+                label: 'Value',
+                data: pts.map((p) => p.value),
+                borderColor: '#dc2626',
+                backgroundColor: 'rgba(220, 38, 38, 0.12)',
+                fill: true, tension: 0.35,
+                pointRadius: 3.5, pointBackgroundColor: '#dc2626', borderWidth: 2,
+            }, {
+                label: 'Qty',
+                data: pts.map((p) => p.qty),
+                borderColor: '#9ca3af', borderDash: [5, 5],
+                fill: false, tension: 0.35,
+                pointRadius: 2.5, pointBackgroundColor: '#9ca3af', borderWidth: 1.5,
+                yAxisID: 'y2',
+            }],
+        },
+        options: Object.assign(opts, {
+            scales: Object.assign(opts.scales, {
+                y2: {
+                    position: 'right',
+                    grid: { display: false },
+                    ticks: { color: '#5b6270', font: { size: 11 } },
+                },
+            }),
+        }),
+    });
+}
+
+function renderCompareChart(series) {
+    const names = Object.keys(series).sort();
+    const lastValues = names.map((n) => {
+        const pts = series[n].filter((p) => p.value != null);
+        return pts.length ? pts[pts.length - 1].value : null;
+    });
+    const canvas = $('#compareChart');
+    if (!canvas) return;
+    if (shareCharts.compare) shareCharts.compare.destroy();
+    const ctx = canvas.getContext('2d');
+    const opts = chartBase();
+    opts.plugins.tooltip.callbacks = {
+        label: (c) => `Value: ${fmtNum(c.parsed.y)} TND`,
+    };
+    opts.scales.y.ticks.callback = (v) => fmtNum(v, 0);
+    opts.indexAxis = 'y';
+    shareCharts.compare = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: names,
+            datasets: [{
+                label: 'Latest Value',
+                data: lastValues,
+                backgroundColor: names.map((n) => {
+                    const pts = series[n].filter((p) => p.plus_minus != null);
+                    const total = pts.reduce((s, p) => s + p.plus_minus, 0);
+                    return total > 0 ? 'rgba(34,197,94,0.65)' : total < 0 ? 'rgba(239,68,68,0.65)' : 'rgba(220,38,38,0.65)';
+                }),
+                borderColor: '#1b1b26', borderWidth: 1, borderRadius: 4,
+            }],
+        },
+        options: opts,
+    });
+}
+
+function renderRanking(series) {
+    const rows = Object.entries(series).map(([name, pts]) => {
+        const values = pts.filter((p) => p.value != null);
+        const pmPts = pts.filter((p) => p.plus_minus != null);
+        const totalPm = pmPts.reduce((s, p) => s + p.plus_minus, 0);
+        const latest = values.length ? values[values.length - 1].value : null;
+        const avg = values.length ? values.reduce((s, p) => s + p.value, 0) / values.length : null;
+        const best = pmPts.length ? pmPts.reduce((a, b) => (!a || b.plus_minus > a.plus_minus ? b : a), null) : null;
+        return {
+            name, days: pts.length, latest, avg, totalPm, hasPm: pmPts.length > 0,
+            bestDay: best ? `${fmtNum(best.plus_minus)} (${best.date})` : '—',
+        };
+    }).sort((a, b) => b.totalPm - a.totalPm);
+
+    $('#rankingCount').textContent = rows.length + ' share(s) · sorted by total +/-';
+    $('#rankingList').innerHTML = `
+        <div class="compare-row wide head">
+            <div>Share</div><div class="num">Days</div><div class="num">Latest Value</div><div class="num">Avg Value</div><div class="num">Total +/-</div><div class="num">Best Day</div>
+        </div>
+        ${rows.map((r) => `
+        <div class="compare-row wide">
+            <div class="name">${esc(r.name)}</div>
+            <div class="num">${r.days}</div>
+            <div class="num">${r.latest != null ? fmtNum(r.latest) : '—'}</div>
+            <div class="num">${r.avg != null ? fmtNum(r.avg) : '—'}</div>
+            <div class="num ${r.totalPm > 0 ? 'pos' : r.totalPm < 0 ? 'neg' : ''}">${r.hasPm ? fmtNum(r.totalPm) : '—'}</div>
+            <div class="num">${r.bestDay}</div>
+        </div>`).join('')}`;
 }
 
 function changes(dates) {

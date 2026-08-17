@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body>
     <header class="header">
@@ -48,6 +48,39 @@
 
         <section class="section">
             <div class="section-head">
+                <div class="section-title">Shares</div>
+                <div class="section-sub">Per-share stats &amp; comparison across days</div>
+            </div>
+            <div class="chart-card">
+                <div class="share-controls">
+                    <div class="seg" id="srcSeg">
+                        <button class="seg-btn active" data-src="merged">Merged (A+B)</button>
+                        <button class="seg-btn" data-src="A">Picture A only</button>
+                        <button class="seg-btn" data-src="B">Picture B only</button>
+                    </div>
+                    <select class="share-select" id="shareSelect"></select>
+                </div>
+                <div class="chart-box"><canvas id="shareChart"></canvas></div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="chart-card">
+                <div class="section-title">Shares Comparison — Latest Value</div>
+                <div class="chart-box"><canvas id="compareChart"></canvas></div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-head">
+                <div class="section-title">Shares Ranking</div>
+                <div class="section-sub" id="rankingCount"></div>
+            </div>
+            <div class="calendar-card" id="rankingList"></div>
+        </section>
+
+        <section class="section">
+            <div class="section-head">
                 <div class="section-title">Daily Breakdown</div>
                 <div class="section-sub" id="breakdownCount"></div>
             </div>
@@ -57,7 +90,8 @@
 
     <div class="toast" id="toast"></div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-    <script src="js/common.js"></script>
-    <script src="js/stats.js"></script>
+    <script src="js/common.js?v=4"></script>
+    <script src="js/merge.js?v=4"></script>
+    <script src="js/stats.js?v=4"></script>
 </body>
 </html>

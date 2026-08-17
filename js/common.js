@@ -28,6 +28,14 @@ function todayStr() {
         String(d.getDate()).padStart(2, '0');
 }
 
+function esc(s) {
+    return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function escAttr(s) {
+    return esc(s).replace(/"/g, '&quot;');
+}
+
 function showToast(msg) {
     const t = $('#toast');
     t.textContent = msg;
@@ -56,6 +64,19 @@ const API = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ date }),
+        });
+        return res.json();
+    },
+    async names() {
+        const res = await fetch('api/names.php');
+        if (!res.ok) throw new Error('API error ' + res.status);
+        return res.json();
+    },
+    async setNames(names) {
+        const res = await fetch('api/names.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ names }),
         });
         return res.json();
     },
