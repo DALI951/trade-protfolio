@@ -54,8 +54,8 @@ function setFiles(files) {
         $('#status').textContent = '';
         $('#status').className = 'status';
     } else {
-        $('#dzTitle').textContent = 'Drop both screenshots here or click to browse';
-        $('#dzSub').textContent = 'Positions view + Portfolio summary — processed in your browser';
+        $('#dzTitle').textContent = 'Drop the screenshots here or click to browse';
+        $('#dzSub').textContent = 'Positions view (one or more scroll parts) + Portfolio summary — processed in your browser';
         dz.classList.remove('files');
         btn.disabled = true;
         $('#clearBtn').hidden = true;
@@ -76,17 +76,40 @@ $('#processBtn').addEventListener('click', async () => {
 
     try {
         let positions = null, portfolio = null;
+        const parts = [];
         let i = 0;
         for (const f of selectedFiles) {
             status.innerHTML = `<span class="spinner"></span>Analyzing screenshot ${++i}/${selectedFiles.length}...`;
             const parsed = await ocrImage(f);
-            if (parsed.type === 'positions') positions = parsed;
-            else if (parsed.type === 'portfolio') portfolio = parsed;
-            else {
+            if (parsed.type === 'positions' || parsed.type === 'positions-part') {
+                parts.push({ file: f, parsed });
+            } else if (parsed.type === 'portfolio') {
+                portfolio = parsed;
+            } else {
                 status.className = 'status err';
                 const snippet = (parsed.text || '').replace(/\s+/g, ' ').slice(0, 120);
                 status.textContent = `Screenshot ${i} not recognized. OCR read: "${snippet}". Try the other screenshot (positions + portfolio are both needed).`;
                 return;
+            }
+        }
+        if (parts.length) {
+            if (parts.length > 1) {
+                // Multiple scroll parts of the same positions screen: stack
+                // them (header part first, fragments in selection order) and
+                // run OCR once on the combined image.
+                status.innerHTML = '<span class="spinner"></span>Stitching scroll parts & running OCR...';
+                const headerParts = parts.filter((p) => p.parsed.type === 'positions');
+                const fragParts = parts.filter((p) => p.parsed.type === 'positions-part');
+                const stitched = await ocrImage(await stitchImages([...headerParts, ...fragParts].map((p) => p.file)));
+                if (stitched.type === 'positions') positions = stitched;
+                else {
+                    status.className = 'status err';
+                    status.textContent = 'Stitched screenshots could not be parsed.';
+                    return;
+                }
+            } else {
+                positions = parts[0].parsed;
+                if (positions.type === 'positions-part') positions.type = 'positions';
             }
         }
         if (!positions && !portfolio) {

@@ -112,6 +112,9 @@ function classifyScreenshot(rows) {
     const all = rows.map(rowText).join(' ').toLowerCase();
     if (all.includes('valorisation')) return 'positions';
     if (all.includes('total portefeuille') || all.includes('total general') || all.includes('total général')) return 'portfolio';
+    // Scrolled-down part of the positions screen: no header, but the
+    // positions list itself (QTE/PRMP/PM rows).
+    if (all.includes('qte') && (all.includes('prmp') || all.includes('+/-value'))) return 'positions-part';
     return 'unknown';
 }
 
@@ -121,6 +124,7 @@ function classifyText(rawText) {
     const s = String(rawText || '').toLowerCase();
     if (s.includes('valorisation')) return 'positions';
     if (s.includes('total portefeuille') || s.includes('total general') || s.includes('total général')) return 'portfolio';
+    if (s.includes('qte') && (s.includes('prmp') || s.includes('+/-value'))) return 'positions-part';
     return 'unknown';
 }
 
@@ -137,7 +141,7 @@ function parseFromText(rawText) {
         return parseNumber(m[1]);
     };
     const out = { type: classifyText(normText), via: 'text' };
-    if (out.type === 'positions') {
+    if (out.type === 'positions' || out.type === 'positions-part') {
         out.valorisation = find('valorisation');
         out.total_valo = find('total valo');
         out.plus_minus_value = find('\\+/-\\s*value');
@@ -274,7 +278,11 @@ const pmWord = findPmWord(rows[i]);
             }
         }
 
-        if (pos.name && pos.qty !== null) positions.push(pos);
+        if (pos.name && pos.qty !== null) {
+            // scroll parts may overlap by one row — drop exact duplicates
+            const dup = positions.find((p) => p.name === pos.name && p.qty === pos.qty);
+            if (!dup) positions.push(pos);
+        }
     }
     return positions;
 }
@@ -368,6 +376,93 @@ function extractHoldings(rows) {
     return holdings;
 }
 
+// ---------------- Header value refinement ----------------
+// Tesseract sometimes drops the decimal comma of small header numbers at
+// full-image scale ("Disponible : 5,18" -> "518"). When a labeled header
+// field parsed as a plain integer, re-OCR just its word-bbox region at 5x
+// zoom — isolated crops read the comma reliably (verified).
+async function reOcrRegion(worker, canvas, x0, y0, x1, y1) {
+    const pad = 12;
+    const sx = Math.max(0, Math.floor(x0) - pad);
+    const sy = Math.max(0, Math.floor(y0) - pad);
+    const sw = Math.min(canvas.width - sx, Math.ceil(x1) + pad - sx);
+    const sh = Math.min(canvas.height - sy, Math.ceil(y1) + pad - sy);
+    if (sw < 4 || sh < 4) return null;
+    const z = 5;
+    const zoom = document.createElement('canvas');
+    zoom.width = sw * z;
+    zoom.height = sh * z;
+    const zctx = zoom.getContext('2d');
+    zctx.imageSmoothingEnabled = true;
+    zctx.imageSmoothingQuality = 'high';
+    zctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, sw * z, sh * z);
+    const { data } = await worker.recognize(zoom, {}, { text: true });
+    return parseNumber(data.text.replace(/[^\d,.\- ]/g, ' '));
+}
+
+async function refineHeaderDecimals(worker, canvas, rows, result) {
+    const done = new Set();
+    for (const row of rows) {
+        const rt = norm(rowText(row));
+        const defs = [];
+        if (rt.includes('disponible') && !rt.includes('total')) defs.push(['disponible', 'disponible']);
+        if (rt.includes('engagee') || rt.includes('engagée')) defs.push(['engagee', 'engage']);
+        if (rt.replace(/!/g, '').includes('total valo')) defs.push(['total_valo', 'total']);
+        if (rt.replace(/ /g, '').replace(/:/g, '').includes('+/-value')) defs.push(['plus_minus_value', '+/-']);
+        if (rt.includes('valorisation')) defs.push(['valorisation', 'valorisation']);
+        if (rt.includes('total portefeuille')) defs.push(['total_portefeuille', 'portefeuille']);
+        if (rt.includes('total liquidite') && !rt.includes('dispo') && !rt.includes('reserv')) defs.push(['total_liquidite', 'liquidite']);
+        if (rt.includes('liquidite disponible') || rt.includes('liquidite disponibl')) defs.push(['liquidite_disponible', 'disponible']);
+        if (rt.includes('liquidite reservee') || rt.includes('liquidite reserv')) defs.push(['liquidite_reservee', 'reservee']);
+        if (rt.includes('total general') || rt.includes('total genera')) defs.push(['total_general', 'general']);
+        for (const [field, label] of defs) {
+            if (result[field] == null || done.has(field)) continue;
+            if (!Number.isInteger(result[field])) continue;
+            const lb = findWord(row, label);
+            if (!lb) continue;
+            const nums = [];
+            for (const w of row) {
+                if (w.bbox.x0 <= lb.bbox.x0) continue;
+                if (!isNumericWord(w.text)) {
+                    if (/^[^\w\d]+$/.test(w.text)) continue;
+                    break;
+                }
+                nums.push(w);
+            }
+            if (!nums.length) continue;
+            done.add(field);
+            const minX = Math.min(...nums.map((w) => w.bbox.x0));
+            const minY = Math.min(...nums.map((w) => w.bbox.y0));
+            const maxX = Math.max(...nums.map((w) => w.bbox.x1));
+            const maxY = Math.max(...nums.map((w) => w.bbox.y1));
+            const v = await reOcrRegion(worker, canvas, minX, minY, maxX, maxY);
+            if (v !== null && !Number.isInteger(v)) result[field] = v;
+        }
+    }
+}
+
+// Stack scroll-parts of one screenshot vertically into a single image.
+async function stitchImages(files) {
+    const bmps = [];
+    for (const f of files) bmps.push(await createImageBitmap(f));
+    const w = Math.max(...bmps.map((b) => b.width));
+    const h = bmps.reduce((s, b) => s + b.height, 0);
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, h);
+    let y = 0;
+    for (const b of bmps) {
+        ctx.drawImage(b, 0, y);
+        y += b.height;
+    }
+    bmps.forEach((b) => b.close());
+    const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+    return new File([blob], 'stitched.png', { type: 'image/png' });
+}
+
 // ---------------- Main ----------------
 // Preprocess the uploaded image on a canvas: upscale to ~1600px wide,
 // grayscale + contrast — dramatically improves Tesseract accuracy.
@@ -424,8 +519,18 @@ async function ocrImage(file) {
         const blocks = data.blocks || [];
         const rows = buildWordRows(blocks);
         const type = classifyScreenshot(rows);
-        if (type === 'positions') return parsePositions(rows);
-        if (type === 'portfolio') return parsePortfolio(rows);
+        let result = null;
+        if (type === 'positions' || type === 'positions-part') {
+            result = parsePositions(rows);
+            if (type === 'positions-part') result.via = 'positions-part';
+            await refineHeaderDecimals(worker, input, rows, result);
+            return result;
+        }
+        if (type === 'portfolio') {
+            result = parsePortfolio(rows);
+            await refineHeaderDecimals(worker, input, rows, result);
+            return result;
+        }
         // Fallback: the block/word structure failed but text may still be
         // readable — extract the totals straight from the raw OCR text.
         if (classifyText(data.text) !== 'unknown') return parseFromText(data.text);
